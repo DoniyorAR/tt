@@ -1,0 +1,12 @@
+﻿number,title,responsible,start_date,due_date,duration,percentage
+1,"Data Fusion, public dataset, related researchs",Doni,2025-07-01,2025-12-10,180,40%
+2,Research on Data Fusion for underground risk and carbon emission,Mr. Oh,2025-07-01,2025-09-25,24,100%
+3,"Study of Korean Public Datasets (AI Hub, Open Data Portal)",Mr. Oh,2025-07-10,2025-08-05,26,100%
+4,Dataset collection (public dataset),Doni,2025-10-01,2025-11-30,29,100%
+5,Research on Existing AI Models & Fusion Techniques,Doni,2025-08-20,2025-11-15,26,80%
+6,Metadata Schema Design for Data Fusion,Doni,2025-09-15,2025-11-15,61,60%
+7,Data Pipeline Setup (Public + Environmental Data Integration),Doni,2025-10-15,2025-11-25,41,40%
+8,Model-Level Data Fusion Testing,Doni,2025-11-25,2025-12-10,15,20%
+9,Validation & Visualization (Fusion Results Dashboard),Doni,2025-12-10,2025-12-25,15,10%
+10,Documentation and Final Report,Doni,2025-12-25,2025-12-30,5,0%
+11,AI modeling and Demostration,Doni,2025-12-01,2025-12-30,30,0%

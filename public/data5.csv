@@ -1,0 +1,55 @@
+id,spec_area,speed,car_model,superstructure,resilience_GM_m,estimated_performance_knots,peach_B_P_D
+1,Seaweed,14,w/chine width,Uninstalled,1.591552517,31.52,1.121929869
+2,Seaweed,14,w/chine width,closed room,1.555762609,31.29,1.118588553
+3,Seaweed,14,w/o chinese width,maximum crew room,2.314269857,32.11,1.130452996
+4,Seaweed,14,w/o chinese width,mimum crew room,2.344916451,32.17,1.131386845
+5,Seaweed,14,Deadrise angle,windbreak,2.593583117,32.28,1.132814654
+6,Seaweed,14,Deadrise angle,medium crew room,2.454307936,32.07,1.129941739
+7,Seaweed,18,w/chine width,windbreak,1.53160704,31.29,1.118537893
+8,Seaweed,18,w/chine width,medium crew room,1.498503357,30.91,1.113242702
+9,Seaweed,18,w/o chinese width,Uninstalled,2.164878327,32.34,1.133781689
+10,Seaweed,18,w/o chinese width,closed room,2.103896178,32.23,1.132174067
+11,Seaweed,18,Deadrise angle,maximum crew room,2.681101947,31.52,1.122023107
+12,Seaweed,18,Deadrise angle,mimum crew room,2.738779476,31.6,1.123044509
+13,Seaweed,22,w/chine width,maximum crew room,1.244366773,31.06,1.1154
+14,Seaweed,22,w/chine width,mimum crew room,1.247345533,31.18,1.117
+15,Seaweed,22,w/o chinese width,windbreak,2.733141694,32.24,1.132296786
+16,Seaweed,22,w/o chinese width,medium crew room,2.647709539,32.02,1.129220477
+17,Seaweed,22,Deadrise angle,Uninstalled,3.093664141,31.7,1.1247
+18,Seaweed,22,Deadrise angle,closed room,2.939936521,31.5,1.121636958
+19,Composite,14,w/chine width,windbreak,1.610574533,31.04,1.115277346
+20,Composite,14,w/chine width,medium crew room,1.525751164,30.61,1.109417391
+21,Composite,14,w/o chinese width,Uninstalled,1.944572924,29.62,1.09779103
+22,Composite,14,w/o chinese width,closed room,1.903898687,29.12,1.093668969
+23,Composite,14,Deadrise angle,maximum crew room,1.881816053,32.46,1.135304298
+24,Composite,14,Deadrise angle,mimum crew room,1.914338676,32.48,1.135698167
+25,Composite,18,w/chine width,maximum crew room,1.375007522,29.72,1.098651359
+26,Composite,18,w/chine width,mimum crew room,1.420077974,29.91,1.100673877
+27,Composite,18,w/o chinese width,windbreak,1.868842234,29.42,1.096102317
+28,Composite,18,w/o chinese width,medium crew room,1.813038248,28.71,1.091165458
+29,Composite,18,Deadrise angle,Uninstalled,1.611198704,31.72,1.124947345
+30,Composite,18,Deadrise angle,closed room,1.555332074,31.49,1.121549354
+31,Composite,22,w/chine width,Uninstalled,1.350745075,31.14,1.116437539
+32,Composite,22,w/chine width,closed room,1.32896435,29.5,1.096742517
+33,Composite,22,w/o chinese width,maximum crew room,1.799779445,29.45,1.096376811
+34,Composite,22,w/o chinese width,mimum crew room,1.816521819,29.66,1.098125819
+35,Composite,22,Deadrise angle,windbreak,1.574342477,31.62,1.123478705
+36,Composite,22,Deadrise angle,medium crew room,1.51266744,31.33,1.119015194
+37,Complex Coast,14,w/chine width,maximum crew room,1.931745641,31.8,1.125948728
+38,Complex Coast,14,w/chine width,mimum crew room,1.856619974,31.8,1.126076616
+39,Complex Coast,14,w/o chinese width,windbreak,3.022334329,30.94,1.11377273
+40,Complex Coast,14,w/o chinese width,medium crew room,2.916850468,30.95,1.114027835
+41,Complex Coast,14,Deadrise angle,Uninstalled,3.328749493,31.12,1.11634877
+42,Complex Coast,14,Deadrise angle,closed room,3.153929729,31.13,1.116418988
+43,Complex Coast,18,w/chine width,Uninstalled,1.971951833,31.2,1.117358062
+44,Complex Coast,18,w/chine width,closed room,1.91127635,31.09,1.115891549
+45,Complex Coast,18,w/o chinese width,maximum crew room,2.430756836,30.65,1.109812628
+46,Complex Coast,18,w/o chinese width,mimum crew room,2.467615524,30.69,1.110490702
+47,Complex Coast,18,Deadrise angle,windbreak,3.345572509,31.27,1.118304178
+48,Complex Coast,18,Deadrise angle,medium crew room,3.140820821,31.25,1.118095881
+49,Complex Coast,22,w/chine width,windbreak,1.82704828,30.49,1.107777321
+50,Complex Coast,22,w/chine width,medium crew room,1.75422766,30.23,1.104442307
+51,Complex Coast,22,w/o chinese width,Uninstalled,2.71293968,30.65,1.109812628
+52,Complex Coast,22,w/o chinese width,closed room,2.638984694,30.52,1.10820635
+53,Complex Coast,22,Deadrise angle,maximum crew room,2.240649704,32.43,1.135116497
+54,Complex Coast,22,Deadrise angle,mimum crew room,2.286819028,32.4,1.134524841

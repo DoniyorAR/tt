@@ -1,0 +1,18 @@
+numner,title,responsible,start_date,due_date,duration,percentage
+1,Tree Measurement AI Modeling,Doni,45839,46021,180,100
+1.1,Literature Review on Tree Measurement & LiDAR Analysis,Doni,45839,45858,19,100
+1.2,LiDAR-based Tree Segmentation & Classification (PointNet++),Furqat-B,45853,45884,31,100
+1.3,"LiDAR Dataset Preprocessing (Filtering, Normalization, Augmentation)",Furqat-B,45853,45863,10,100
+1.4,LiDAR Model Training (PointNet++ Fine-tuning),Furqat-B,45863,45874,11,100
+1.5,LiDAR Model Testing & Evaluation,Furqat-B,45874,45884,10,100
+1.6,QAT Training & Performance Analysis (Quantization-Aware Training),Furqat-B,45884,45894,10,100
+1.7,"Tree Measurement Algorithm (DBH, Height, Volume Estimation)",Furqat-B,45884,45910,26,100
+1.8,RGB-based Tree Segmentation Research,"Shakhnoza, Sabina",45901,45920,19,100
+1.9,RGB Model Training,"Shakhnoza, Sabina",45901,45910,9,100
+1.1,RGB Model Testing,"Shakhnoza, Sabina",45910,45915,5,100
+1.11,Validation & Visualization of RGB Results,"Shakhnoza, Sabina",45915,45920,5,100
+1.12,Visualization and UI Integration (Tree Analytics),"Shakhnoza, Sabina",45915,45935,20,100
+1.13,Tree Measurement Model Development (Fusion + Enhancement),Doni,45931,45950,19,30
+1.14,Model API Development (Measurement & Analytics API),Doni,45950,45976,26,25
+1.15,Demo Phase (Web & AR Integration),Doni,45976,46001,25,0
+1.16,Documentation & Report Preparation,Doni,46001,46021,20,0

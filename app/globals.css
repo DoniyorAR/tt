@@ -1,0 +1,8 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: light; }
+html, body { @apply bg-slate-50 text-slate-800 antialiased; }
+a { @apply underline-offset-2; }
+.container-p { @apply px-4 md:px-8; }
