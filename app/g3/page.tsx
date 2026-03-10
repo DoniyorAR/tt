@@ -1,275 +1,290 @@
-// app/g3/page.tsx
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import rawLabels from "./labels.json";
 
-/**
- * G3 Demo: Multi-step Tree Health Check interactive demo
- * - Step 1: Enter Tree ID or Upload / Take Photo
- * - Step 2: AI Prediction (simulated) -> segmentation overlay on canvas
- * - Step 3: Height & DBH (simulated numbers) + health score
- *
- * No external images required — everything is rendered dynamically.
- */
-
-/* ----------------- Helpers ----------------- */
-function randBetween(min: number, max: number) {
-  return Math.floor(min + Math.random() * (max - min + 1));
-}
-
-function humanPct(v: number) {
-  return `${Math.round(v)}%`;
-}
-
-/* Small "coupon" PDF generator (very small text-only PDF blob for demo) */
-async function createDemoCoupon(treeId: string) {
-  // A minimal PDF as bytes (this is a very small placeholder PDF)
-  const text = `PYEONGTAEK\nTreeCoupon\nTree ID: ${treeId}\nThank you for contributing a tree photo!`;
-  // Create a simple text file but named .pdf for demo; real app should generate proper PDF server-side.
-  const blob = new Blob([text], { type: "application/pdf" });
-  return blob;
-}
-
-/* ----------------- Types ----------------- */
 type Step = 1 | 2 | 3;
 
-/* ----------------- Component ----------------- */
+type LabelFile = {
+  info?: { description?: string };
+  images: {
+    id: number;
+    width: number;
+    height: number;
+    file_name: string;
+  }[];
+  annotations: {
+    id: number;
+    iscrowd: number;
+    image_id: number;
+    category_id: number;
+    segmentation: number[][];
+    bbox: [number, number, number, number];
+    area: number;
+  }[];
+  categories: {
+    id: number;
+    name: string;
+  }[];
+};
+
+type OverlayItem = {
+  id: number;
+  label: "tree" | "qr";
+  points: Array<{ x: number; y: number }>;
+};
+
+const labels = rawLabels as LabelFile;
+
+const FIXED_RESULT = {
+  distanceToQrM: 1.5,
+  heightM: 5.2,
+  dbhCm: 15,
+  healthPct: 88,
+};
+
+const SEGMENT_STYLE = {
+  tree: {
+    fill: "rgba(34,197,94,0.28)",
+    stroke: "#16a34a",
+    text: "Segmented Tree Area",
+  },
+  qr: {
+    fill: "rgba(59,130,246,0.30)",
+    stroke: "#2563eb",
+    text: "Segmented QR Area",
+  },
+} as const;
+
 export default function G3PageDemo() {
   const [step, setStep] = useState<Step>(1);
-
-  // Input step
-  const [treeId, setTreeId] = useState("");
+  const [treeId, setTreeId] = useState("1");
   const [file, setFile] = useState<File | null>(null);
   const [fileUrl, setFileUrl] = useState<string | null>(null);
-
-  // Processing state
-  const [progress, setProgress] = useState(0);
   const [processing, setProcessing] = useState(false);
+  const [progress, setProgress] = useState(0);
 
-  // AI result placeholders
-  const [segmentationBoxes, setSegmentationBoxes] = useState<
-    { x: number; y: number; w: number; h: number; color: string; label: string }[]
-  >([]);
-  const [species, setSpecies] = useState("Unknown");
-  const [healthScore, setHealthScore] = useState(0);
-  const [heightMeters, setHeightMeters] = useState<number | null>(null);
-  const [dbhCm, setDbhCm] = useState<number | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Clean up object URLs
+  const imageMeta = labels.images[0];
+
+  const overlayItems = useMemo<OverlayItem[]>(() => {
+    const categoryMap = new Map<number, string>(
+      labels.categories.map((c) => [c.id, c.name.toLowerCase()])
+    );
+
+    return labels.annotations
+      .map((ann) => {
+        const categoryName = categoryMap.get(ann.category_id);
+        if (categoryName !== "tree" && categoryName !== "qr") return null;
+
+        const polygon = ann.segmentation?.[0] ?? [];
+        const points: Array<{ x: number; y: number }> = [];
+
+        for (let i = 0; i < polygon.length; i += 2) {
+          points.push({
+            x: polygon[i],
+            y: polygon[i + 1],
+          });
+        }
+
+        return {
+          id: ann.id,
+          label: categoryName,
+          points,
+        } as OverlayItem;
+      })
+      .filter(Boolean) as OverlayItem[];
+  }, []);
+
   useEffect(() => {
     return () => {
-      if (fileUrl && fileUrl.startsWith && fileUrl.startsWith("blob:")) URL.revokeObjectURL(fileUrl);
+      if (fileUrl?.startsWith("blob:")) {
+        URL.revokeObjectURL(fileUrl);
+      }
     };
   }, [fileUrl]);
 
-  /* Handle file selection (supports camera capture on mobile if user chooses) */
-  function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0] ?? null;
-    if (!f) return;
-    // revoke previous blob URL if exists
-    if (fileUrl && fileUrl.startsWith && fileUrl.startsWith("blob:")) URL.revokeObjectURL(fileUrl);
-    const url = URL.createObjectURL(f);
-    setFile(f);
-    setFileUrl(url);
-  }
-
-  /* Start demo AI processing (simulated) */
-  function startProcessing() {
-    setProcessing(true);
-    setProgress(0);
-    setSegmentationBoxes([]);
-    setSpecies("Detecting...");
-    setHealthScore(0);
-    setHeightMeters(null);
-    setDbhCm(null);
-
-    // Simulate progress
-    let p = 0;
-    const interval = setInterval(() => {
-      p += randBetween(6, 14);
-      if (p >= 100) p = 100;
-      setProgress(p);
-      if (p === 100) {
-        clearInterval(interval);
-        // Fake results:
-        const boxes = generateDemoSegments();
-        setSegmentationBoxes(boxes);
-        setSpecies(["Pine", "Oak", "Maple", "Cherry"][randBetween(0, 3)]);
-        const score = randBetween(60, 98);
-        setHealthScore(score);
-        // Simple heuristic: image height px -> map to meters
-        const imgHeight = imgRef.current?.naturalHeight ?? 1200; // fallback
-        // map 400-2000px to 3-25 m
-        const height = Math.max(3, Math.round(((imgHeight - 400) / 1600) * 22 + 3));
-        setHeightMeters(height);
-        // DBH random relative to height
-        setDbhCm(Math.max(10, Math.round(height * (randBetween(10, 25) / 10))));
-        setProcessing(false);
-        setStep(2);
-      }
-    }, 350);
-  }
-
-  /* Small synthetic segmentation: return boxes relative to image */
-  function generateDemoSegments() {
-    // create 3-4 demo boxes with colors
-    const colors = ["rgba(34,197,94,0.25)", "rgba(59,130,246,0.18)", "rgba(234,88,12,0.18)", "rgba(168,85,247,0.18)"];
-    const labels = ["Tree Area", "Leaf", "Tree Body", "Full Segmentation"];
-    const count = randBetween(2, 4);
-    const boxes: { x: number; y: number; w: number; h: number; color: string; label: string }[] = [];
-    for (let i = 0; i < count; i++) {
-      boxes.push({
-        x: randBetween(10, 24),
-        y: randBetween(6, 30 + i * 6),
-        w: randBetween(48, 80 - i * 8),
-        h: randBetween(40 - i * 6, 78),
-        color: colors[i % colors.length],
-        label: labels[i] ?? `Seg${i + 1}`,
-      });
-    }
-    return boxes;
-  }
-
-  /* Draw segmentation overlays on canvas when we have fileUrl and segmentationBoxes */
-  useEffect(() => {
-    const canvas = canvasRef.current;
+  const drawSegmentation = useCallback(() => {
     const img = imgRef.current;
-    if (!canvas || !img || segmentationBoxes.length === 0) return;
+    const canvas = canvasRef.current;
+
+    if (!img || !canvas || !fileUrl) return;
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Fit canvas to image display size
-    const displayW = img.width;
-    const displayH = img.height;
-    canvas.width = displayW;
-    canvas.height = displayH;
+    const displayWidth = img.clientWidth;
+    const displayHeight = img.clientHeight;
+    const dpr = window.devicePixelRatio || 1;
 
-    // Draw translucent overlays
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    segmentationBoxes.forEach((b, idx) => {
-      const x = Math.round((b.x / 100) * displayW);
-      const y = Math.round((b.y / 100) * displayH);
-      const w = Math.round((b.w / 100) * displayW);
-      const h = Math.round((b.h / 100) * displayH);
-      ctx.fillStyle = b.color;
-      ctx.fillRect(x, y, w, h);
-      // stroke
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = b.color.replace(/0\.25|0\.18|0\.5/, "1") || "#4ade80";
-      ctx.strokeRect(x, y, w, h);
-      // label
-      ctx.fillStyle = "#05232e";
-      ctx.font = "14px Inter, ui-sans-serif, system-ui";
-      ctx.fillText(b.label, x + 6, y + 18);
-    });
-  }, [segmentationBoxes, fileUrl]);
+    canvas.width = Math.round(displayWidth * dpr);
+    canvas.height = Math.round(displayHeight * dpr);
+    canvas.style.width = `${displayWidth}px`;
+    canvas.style.height = `${displayHeight}px`;
 
-  /* When user presses "Analyze" from step1
-     Updated: always show public/tree_result.png as the displayed image for the demo run.
-  */
-  function onAnalyze() {
-    // Revoke previous blob URL if it exists
-    if (fileUrl && fileUrl.startsWith && fileUrl.startsWith("blob:")) {
-      try {
-        URL.revokeObjectURL(fileUrl);
-      } catch (e) {
-        /* ignore */
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, displayWidth, displayHeight);
+
+    const scaleX = displayWidth / imageMeta.width;
+    const scaleY = displayHeight / imageMeta.height;
+
+    overlayItems.forEach((item) => {
+      const style = SEGMENT_STYLE[item.label];
+      if (item.points.length < 2) return;
+
+      ctx.beginPath();
+      ctx.moveTo(item.points[0].x * scaleX, item.points[0].y * scaleY);
+
+      for (let i = 1; i < item.points.length; i += 1) {
+        ctx.lineTo(item.points[i].x * scaleX, item.points[i].y * scaleY);
       }
+
+      ctx.closePath();
+      ctx.fillStyle = style.fill;
+      ctx.strokeStyle = style.stroke;
+      ctx.lineWidth = 2;
+      ctx.fill();
+      ctx.stroke();
+
+      const xs = item.points.map((p) => p.x * scaleX);
+      const ys = item.points.map((p) => p.y * scaleY);
+      const minX = Math.min(...xs);
+      const minY = Math.min(...ys);
+
+      const label = style.text;
+      ctx.font = "600 13px Inter, ui-sans-serif, system-ui";
+      const textWidth = ctx.measureText(label).width;
+      const labelX = minX + 8;
+      const labelY = Math.max(22, minY + 22);
+
+      ctx.fillStyle = "rgba(255,255,255,0.92)";
+      ctx.fillRect(labelX - 6, labelY - 16, textWidth + 12, 22);
+
+      ctx.fillStyle = style.stroke;
+      ctx.fillText(label, labelX, labelY);
+    });
+  }, [fileUrl, imageMeta.width, imageMeta.height, overlayItems]);
+
+  useEffect(() => {
+    if (step !== 2 || !fileUrl) return;
+
+    const img = imgRef.current;
+    if (!img) return;
+
+    if (img.complete) {
+      drawSegmentation();
+      return;
     }
 
-    // Force the demo to display the public result image (replace uploaded preview)
-    const demoPublicImage = "/tree_result.png"; // <- ensure this file exists under /public
+    const handleLoad = () => drawSegmentation();
+    img.addEventListener("load", handleLoad);
 
-    // Clear local file state (we will display the public image)
-    setFile(null);
-    setFileUrl(demoPublicImage);
+    return () => {
+      img.removeEventListener("load", handleLoad);
+    };
+  }, [step, fileUrl, drawSegmentation]);
 
-    // Start processing once the image is loaded to ensure naturalHeight is available
-    if (imgRef.current?.complete) {
-      startProcessing();
-    } else {
-      const handler = () => {
-        startProcessing();
-        imgRef.current?.removeEventListener("load", handler);
-      };
-      imgRef.current?.addEventListener("load", handler);
+  useEffect(() => {
+    const onResize = () => {
+      if (step === 2) drawSegmentation();
+    };
+
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [step, drawSegmentation]);
+
+  function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const nextFile = e.target.files?.[0] ?? null;
+    if (!nextFile) return;
+
+    if (fileUrl?.startsWith("blob:")) {
+      URL.revokeObjectURL(fileUrl);
     }
+
+    const nextUrl = URL.createObjectURL(nextFile);
+    setFile(nextFile);
+    setFileUrl(nextUrl);
+    setStep(1);
+    setProgress(0);
   }
 
-  /* Go to final step (3) from step 2's "Next" */
+  function onAnalyze() {
+    if (!fileUrl || !file) return;
+
+    setProcessing(true);
+    setProgress(0);
+
+    let current = 0;
+    const timer = window.setInterval(() => {
+      current += 20;
+      if (current >= 100) {
+        current = 100;
+        setProgress(100);
+        window.clearInterval(timer);
+        setProcessing(false);
+        setStep(2);
+        return;
+      }
+      setProgress(current);
+    }, 150);
+  }
+
   function onToHeight() {
-    // In demo we already computed height/dbh in processing; move to step 3
     setStep(3);
   }
 
-  /* Reset demo */
   function resetDemo() {
-    setStep(1);
-    setTreeId("");
-    setFile(null);
-    if (fileUrl && fileUrl.startsWith && fileUrl.startsWith("blob:")) {
+    if (fileUrl?.startsWith("blob:")) {
       URL.revokeObjectURL(fileUrl);
     }
+
+    setStep(1);
+    setTreeId("1");
+    setFile(null);
     setFileUrl(null);
-    setSegmentationBoxes([]);
-    setSpecies("Unknown");
-    setHealthScore(0);
-    setHeightMeters(null);
-    setDbhCm(null);
     setProcessing(false);
     setProgress(0);
   }
 
-  /* "Take Photo & Get Coupon" - simulate coupon download */
-  async function onCoupon() {
-    const blob = await createDemoCoupon(treeId || "N/A");
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `tree_coupon_${treeId || "demo"}.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }
-
-  /* ----------------- UI Rendering ----------------- */
   return (
     <div className="space-y-8">
-      {/* Header */}
       <header>
-        <h1 className="text-2xl font-semibold text-slate-900">G3 — Tree Health Check (Demo)</h1>
-        <p className="text-sm text-slate-500 max-w-2xl">
-          Interactive demo of the Tree Health Check flow: Input ID / Upload photo → AI segmentation → Height & DBH results.
+        <h1 className="text-2xl font-semibold text-slate-900">G3 — Tree Health Check</h1>
+        <p className="max-w-2xl text-sm text-slate-500">
+          Upload an image, run analysis, review semantic segmentation for tree and QR areas,
+          then inspect height and DBH results.
         </p>
       </header>
 
-      {/* Demo area: mobile-style mock panels */}
-      <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* LEFT: Mobile style flow area */}
+      <section className="grid grid-cols-1 gap-6 md:grid-cols-2">
         <div className="flex flex-col items-center">
           <div className="w-[360px] md:w-[320px]">
-            {/* Mobile frame */}
-            <div className="rounded-[28px] border border-slate-200 overflow-hidden bg-white shadow-xl">
-              <div className="bg-brand-600/90 px-4 py-3 text-white text-sm font-semibold">Tree Health Check — Demo</div>
+            <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-xl">
+              <div className="bg-brand-600/90 px-4 py-3 text-sm font-semibold text-white">
+                Tree Health Check
+              </div>
 
               <div className="p-4">
-                {/* Step UI */}
                 {step === 1 && (
                   <div className="space-y-3">
-                    <label className="block text-xs font-medium text-slate-700">Enter Tree ID</label>
-                    <input
-                      value={treeId}
-                      onChange={(e) => setTreeId(e.target.value)}
-                      placeholder="Enter Tree ID (optional)"
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
-                    />
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-700">
+                        Tree ID
+                      </label>
+                      <input
+                        value={treeId}
+                        onChange={(e) => setTreeId(e.target.value)}
+                        placeholder="Enter Tree ID"
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400"
+                      />
+                    </div>
 
                     <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-2">Upload or take a photo</label>
+                      <label className="mb-2 block text-xs font-medium text-slate-700">
+                        Choose image
+                      </label>
                       <input
                         type="file"
                         accept="image/*"
@@ -279,68 +294,83 @@ export default function G3PageDemo() {
                       />
                     </div>
 
-                    {/* preview */}
                     {fileUrl ? (
-                      <div className="rounded-lg overflow-hidden border border-slate-200">
-                        <img ref={imgRef} src={fileUrl} alt="preview" className="w-full object-cover max-h-64" />
+                      <div className="overflow-hidden rounded-lg border border-slate-200">
+                        <img
+                          src={fileUrl}
+                          alt="Selected preview"
+                          className="max-h-64 w-full object-cover"
+                        />
                       </div>
                     ) : (
                       <div className="rounded-lg border border-dashed border-slate-200 p-6 text-center text-sm text-slate-400">
-                        No photo selected — the demo will still run with synthetic results.
+                        No image selected.
                       </div>
                     )}
 
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => { onAnalyze(); }}
-                        className="flex-1 rounded-lg bg-brand-600 text-white px-4 py-2 text-sm"
-                        disabled={processing}
-                      >
-                        {processing ? `Analyzing… ${progress}%` : "Analyze (Demo)"}
-                      </button>
-                      <button
-                        onClick={onCoupon}
-                        className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700"
-                      >
-                        Take Photo & Get Coupon
-                      </button>
-                    </div>
-
-                    <div className="mt-2 text-xs text-slate-500">
-                      Health Check includes: leaf & pattern analysis, bark review, LiDAR height/DBH demo.
-                    </div>
+                    <button
+                      onClick={onAnalyze}
+                      disabled={!fileUrl || processing}
+                      className="w-full rounded-lg bg-brand-600 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {processing ? `Analyzing... ${progress}%` : "Analyze (Demo)"}
+                    </button>
                   </div>
                 )}
 
                 {step === 2 && (
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-start justify-between">
                       <div>
                         <div className="text-sm font-medium text-slate-900">AI Prediction</div>
-                        <div className="text-xs text-slate-500">{species} · Tree ID: {treeId || "N/A"}</div>
+                        <div className="text-xs text-slate-500">Tree ID: {treeId || "1"}</div>
                       </div>
-                      <div className="text-xs text-slate-500">Confidence: {healthScore ? `${healthScore}%` : "—"}</div>
+                      <div className="text-xs font-medium text-slate-600">
+                        Overall health: {FIXED_RESULT.healthPct}%
+                      </div>
                     </div>
 
-                    {/* Image + canvas overlay */}
-                    <div className="rounded-lg border border-slate-200 overflow-hidden">
-                      {/* If no image, show placeholder box */}
-                      {fileUrl ? (
-                        <div className="relative">
-                          <img ref={imgRef} src={fileUrl} alt="tree" className="w-full h-64 object-cover" />
-                          <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none" />
-                        </div>
-                      ) : (
-                        <div className="h-64 bg-slate-50 flex items-center justify-center text-slate-400">
-                          (no photo) — showing demo segmentation overlays
-                        </div>
-                      )}
+                    <div className="overflow-hidden rounded-lg border border-slate-200">
+                      <div className="relative">
+                        <img
+                          ref={imgRef}
+                          src={fileUrl ?? ""}
+                          alt="Analyzed tree"
+                          className="h-64 w-full object-cover"
+                        />
+                        <canvas
+                          ref={canvasRef}
+                          className="pointer-events-none absolute inset-0"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                      <div className="text-sm font-medium text-slate-900">
+                        Semantic Segmentation
+                      </div>
+
+                      <div className="flex items-center gap-2 text-sm text-slate-700">
+                        <span
+                          className="h-3 w-3 rounded-sm"
+                          style={{ background: SEGMENT_STYLE.tree.fill }}
+                        />
+                        <span>Segmented Tree Area</span>
+                      </div>
+
+                      <div className="flex items-center gap-2 text-sm text-slate-700">
+                        <span
+                          className="h-3 w-3 rounded-sm"
+                          style={{ background: SEGMENT_STYLE.qr.fill }}
+                        />
+                        <span>Segmented QR Area</span>
+                      </div>
                     </div>
 
                     <div className="flex gap-2">
                       <button
                         onClick={onToHeight}
-                        className="flex-1 rounded-lg bg-emerald-500 text-white px-4 py-2 text-sm"
+                        className="flex-1 rounded-lg bg-emerald-500 px-4 py-2 text-sm text-white"
                       >
                         View Height & DBH
                       </button>
@@ -351,38 +381,43 @@ export default function G3PageDemo() {
                         Back
                       </button>
                     </div>
-
-                    {/* small legend */}
-                    <div className="flex flex-wrap gap-2 text-xs text-slate-600">
-                      {segmentationBoxes.map((s, i) => (
-                        <div key={i} className="flex items-center gap-2">
-                          <span className="w-3 h-3 rounded-sm" style={{ background: s.color }} />
-                          <span>{s.label}</span>
-                        </div>
-                      ))}
-                    </div>
                   </div>
                 )}
 
                 {step === 3 && (
                   <div className="space-y-3">
-                    <div className="text-sm font-medium text-slate-900">Tree Height & Health</div>
+                    <div className="text-sm font-medium text-slate-900">
+                      Height & DBH Result
+                    </div>
 
-                    <div className="rounded-lg border border-slate-200 p-3 bg-slate-50">
-                      <div className="text-sm text-slate-700">Dimensional Information</div>
-                      <div className="mt-2 text-sm">
-                        <div><strong>Height:</strong> {heightMeters ? `${heightMeters} m` : "—"}</div>
-                        <div><strong>DBH (diameter at breast height):</strong> {dbhCm ? `${dbhCm} cm` : "—"}</div>
-                        <div className="mt-2"><strong>Overall Health:</strong> {healthScore ? `${healthScore}%` : "—"}</div>
-                        <div><strong>Confidence:</strong> {healthScore >= 80 ? "High" : healthScore >= 60 ? "Medium" : "Low"}</div>
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+                      <div>
+                        <strong>Distance from ground to QR</strong> ={" "}
+                        {FIXED_RESULT.distanceToQrM} (m)
+                      </div>
+                      <div className="mt-2">
+                        <strong>Height</strong> = {FIXED_RESULT.heightM} (m)
+                      </div>
+                      <div className="mt-2">
+                        <strong>DBH (diameter at QR area)</strong> ={" "}
+                        {FIXED_RESULT.dbhCm} (cm)
+                      </div>
+                      <div className="mt-3">
+                        <strong>Overall health</strong> = {FIXED_RESULT.healthPct} %
                       </div>
                     </div>
 
                     <div className="flex gap-2">
-                      <button onClick={resetDemo} className="flex-1 rounded-lg bg-brand-600 text-white px-4 py-2 text-sm">
+                      <button
+                        onClick={resetDemo}
+                        className="flex-1 rounded-lg bg-brand-600 px-4 py-2 text-sm text-white"
+                      >
                         Run Another Demo
                       </button>
-                      <button onClick={() => setStep(2)} className="rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                      <button
+                        onClick={() => setStep(2)}
+                        className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                      >
                         Back
                       </button>
                     </div>
@@ -391,58 +426,26 @@ export default function G3PageDemo() {
               </div>
             </div>
           </div>
-
-          <div className="mt-3 text-xs text-slate-500 text-center">
-            
-          </div>
         </div>
 
-        {/* RIGHT: Project structure and info */}
         <div className="space-y-4">
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h3 className="text-lg font-semibold text-slate-900">Tree Health Check — Explanation</h3>
-            <p className="text-sm text-slate-600 mt-2">
-              The Tree Health Check module uses image segmentation and LiDAR-derived metrics to estimate tree health,
-              height, and trunk diameter (DBH). The UI guides users step-by-step for straightforward contribution.
+            <h3 className="text-lg font-semibold text-slate-900">What changed</h3>
+            <div className="mt-2 space-y-2 text-sm text-slate-600">
+              <div>• Uses uploaded image preview instead of a static demo file.</div>
+              <div>• Moves directly from Analyze → AI Prediction page.</div>
+              <div>• Draws polygon-based semantic segmentation from JSON.</div>
+              <div>• Shows only Tree Area and QR Area.</div>
+              <div>• Final result page uses your fixed values.</div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h4 className="font-semibold text-slate-900">Annotation source</h4>
+            <p className="mt-2 text-sm text-slate-600">
+              This page reads the same structure as your uploaded label file:
+              one image entry and two categories, <strong>tree</strong> and <strong>qr</strong>.
             </p>
-
-            <div className="mt-3 grid grid-cols-1 gap-2">
-              <div className="text-sm">
-                <strong>1. Input / Upload:</strong> Enter Tree ID or upload image (mobile camera supported).
-              </div>
-              <div className="text-sm">
-                <strong>2. AI Segmentation:</strong> Model segments leaf, body, and full tree silhouette; species & health score estimated.
-              </div>
-              <div className="text-sm">
-                <strong>3. Dimensions:</strong> LiDAR + segmentation estimate height & DBH; store metrics for monitoring & alerts.
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h4 className="font-semibold text-slate-900">G3 Project Structure (placeholder)</h4>
-            <ol className="mt-2 text-sm text-slate-600 list-decimal ml-5 space-y-1">
-              <li><strong>Acquisition:</strong> Photos & LiDAR scans (mobile/field devices)</li>
-              <li><strong>Preprocess:</strong> Align LiDAR + RGB, denoise, normalize</li>
-              <li><strong>Models:</strong> Segmentation, species classifier, height estimator</li>
-              <li><strong>Storage:</strong> S3 / NAS for pointclouds & images; PostgreSQL metadata</li>
-              <li><strong>Dashboard:</strong> Visualize health trends, export reports</li>
-            </ol>
-
-            <div className="mt-3 text-sm">
-              <button onClick={() => alert("Open architecture (placeholder)") } className="rounded-lg bg-brand-600 text-white px-3 py-1 text-sm">
-                View Architecture (placeholder)
-              </button>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h4 className="font-semibold text-slate-900">Notes for deployment</h4>
-            <ul className="text-sm text-slate-600 list-disc ml-5 space-y-1">
-              <li>Integrate with LiDAR pointclouds for accurate height/DBH.</li>
-              <li>Use calibrated sensors and ground truth for model validation.</li>
-              <li>Protect user-uploaded data and anonymize metadata.</li>
-            </ul>
           </div>
         </div>
       </section>
